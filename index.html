@@ -1,1 +1,700 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Code Breaker</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fredoka:wght@500;600;700&display=swap" rel="stylesheet">
+<style>
+:root{
+  --bg:#e7edf6; --panel:#ffffff; --ink:#18233a; --muted:#56637c; --line:#c5d0e2;
+  --accent:#2f4fd0; --accent-ink:#ffffff; --good:#1b8a4b; --warn:#b4540a;
+  --board:#d3deee; --slot:#eef3fa; --slot-line:#a9b9d3;
+  --shield:#1d2a46; --shield-ink:#e8eefb;
+  --fb-black:#161a22; --fb-white:#ffffff; --fb-ring:#161a22;
+  --hint-bg:#fff4c9; --hint-line:#d9a800;
+  --head:"Fredoka", ui-rounded, "Trebuchet MS", system-ui, sans-serif;
+  --body:system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+  color-scheme:light;
+  box-sizing:border-box;
+  padding-top:env(safe-area-inset-top, 0px);
+  padding-bottom:env(safe-area-inset-bottom, 0px);
+}
+@media (prefers-color-scheme: dark){
+  :root:not([data-theme="light"]){
+    --bg:#0f1624; --panel:#192238; --ink:#edf1fa; --muted:#9fabc4; --line:#34425f;
+    --accent:#7a9bff; --accent-ink:#0a1020; --good:#4cc582; --warn:#f0a04b;
+    --board:#1d2840; --slot:#27344f; --slot-line:#46567a;
+    --shield:#0a0f1b; --shield-ink:#e8eefb;
+    --fb-black:#04060a; --fb-white:#ffffff; --fb-ring:#c9d3e8;
+    --hint-bg:#3a3217; --hint-line:#d9b53a;
+    color-scheme:dark;
+  }
+}
+:root[data-theme="dark"]{
+  --bg:#0f1624; --panel:#192238; --ink:#edf1fa; --muted:#9fabc4; --line:#34425f;
+  --accent:#7a9bff; --accent-ink:#0a1020; --good:#4cc582; --warn:#f0a04b;
+  --board:#1d2840; --slot:#27344f; --slot-line:#46567a;
+  --shield:#0a0f1b; --shield-ink:#e8eefb;
+  --fb-black:#04060a; --fb-white:#ffffff; --fb-ring:#c9d3e8;
+  --hint-bg:#3a3217; --hint-line:#d9b53a;
+  color-scheme:dark;
+}
 
+*{box-sizing:border-box}
+[hidden]{display:none !important}
+html,body{height:100%;margin:0}
+body{background:var(--bg);color:var(--ink);font-family:var(--body);font-size:16px;overflow:hidden}
+button{font-family:inherit}
+
+/* ---------- layout ---------- */
+#app{height:100%;display:grid;grid-template-rows:auto minmax(0,1fr);gap:8px;padding:8px 14px 12px;max-width:1500px;margin:0 auto}
+header{display:flex;align-items:center;gap:12px;min-height:44px}
+.logo{display:flex;gap:4px}
+.logo i{width:14px;height:14px;border-radius:50%;display:block}
+h1{font-family:var(--head);font-weight:600;font-size:clamp(22px,4vh,30px);margin:0;letter-spacing:.2px}
+.pill{background:var(--shield);color:var(--shield-ink);border-radius:999px;padding:5px 14px;font-weight:600;font-size:15px}
+.spacer{flex:1}
+main{display:grid;grid-template-columns:minmax(300px,430px) minmax(0,1fr);gap:16px;min-height:0}
+#boardWrap{background:var(--board);border-radius:20px;padding:8px;min-height:0;display:flex;flex-direction:column}
+#board{flex:1;min-height:0;display:flex;flex-direction:column;gap:var(--rgap,4px);overflow:hidden}
+#panel{display:flex;flex-direction:column;gap:10px;min-height:0;min-width:0}
+
+/* ---------- pegs ---------- */
+.peg{width:var(--sz,var(--peg));height:var(--sz,var(--peg));border-radius:50%;background:var(--bg-c);display:inline-grid;place-items:center;flex:none;
+  box-shadow:inset 0 -3px 0 rgba(0,0,0,.2), inset 0 2px 0 rgba(255,255,255,.35)}
+.peg svg{width:60%;height:60%;display:block}
+.peg path{fill:var(--ink-c)}
+.peg.mini{--sz:20px;vertical-align:middle;margin-right:4px}
+.peg.q{background:#46526b;color:#e8eefb;font-family:var(--head);font-weight:600;font-size:calc(var(--sz,var(--peg)) * .55);box-shadow:inset 0 -3px 0 rgba(0,0,0,.25)}
+.chip{display:inline-block;white-space:nowrap}
+
+/* ---------- board rows ---------- */
+.row{height:var(--rowh);display:flex;align-items:center;justify-content:center;gap:calc(var(--peg) * .18);padding:0 calc(var(--peg) * .2);border-radius:calc(var(--peg) * .5);flex:none}
+.row.current{background:var(--panel);box-shadow:0 0 0 3px var(--accent)}
+.row.flag{background:var(--hint-bg);box-shadow:0 0 0 3px var(--warn)}
+.row.future{opacity:.55}
+.num{width:calc(var(--peg) * .6);text-align:center;font-family:var(--head);font-weight:600;font-size:calc(var(--peg) * .42);color:var(--muted)}
+.slots{display:flex;gap:calc(var(--peg) * .18)}
+.slot{width:var(--peg);height:var(--peg);border-radius:50%;background:var(--slot);border:2px dashed var(--slot-line);padding:0;display:grid;place-items:center;flex:none}
+.slot.filled{border:0;background:transparent}
+button.slot{cursor:pointer}
+.slot.sel{outline:3px solid var(--accent);outline-offset:2px}
+.slot:focus-visible{outline:3px solid var(--accent);outline-offset:2px}
+.fb{display:grid;grid-template-columns:repeat(var(--fbcols,2),calc(var(--peg) * .34));grid-auto-rows:calc(var(--peg) * .34);gap:calc(var(--peg) * .08)}
+.fb.ghost{visibility:hidden}
+.row.current .fb.ghost{visibility:visible;opacity:.5}
+.dot{width:calc(var(--peg) * .34);height:calc(var(--peg) * .34);border-radius:50%;border:2px solid var(--fb-ring);display:inline-block}
+.dot.b{background:var(--fb-black)}
+.dot.w{background:var(--fb-white)}
+.dot.e{background:transparent;border:1.5px dashed var(--slot-line)}
+
+/* ---------- right panel ---------- */
+#secretBox{display:flex;align-items:center;gap:14px;background:var(--shield);color:var(--shield-ink);border-radius:16px;padding:8px 16px}
+#secretBox .lbl{font-family:var(--head);font-weight:500;font-size:17px}
+#secretPegs{display:flex;gap:8px;--sz:clamp(30px,5.4vh,42px)}
+#guessCount{margin-left:auto;font-weight:700;font-size:16px}
+#coach{flex:1;min-height:70px;display:flex;gap:12px;align-items:flex-start;background:var(--panel);border:2px solid var(--line);border-radius:16px;padding:12px 16px;overflow:auto}
+#coach.hint{background:var(--hint-bg);border-color:var(--hint-line)}
+#coach.warn{border-color:var(--warn)}
+#coach.good{border-color:var(--good)}
+#coach .avatar{font-size:clamp(24px,4.4vh,34px);line-height:1}
+#coachText{font-size:clamp(15px,2.7vh,20px);line-height:1.42}
+#palette{display:flex;gap:clamp(8px,1.4vw,16px);justify-content:center;flex-wrap:wrap;--psz:clamp(40px,8.4vh,62px);padding-top:6px}
+.pcol{position:relative;display:flex;flex-direction:column;align-items:center;gap:1px}
+.pbtn{position:relative;border:0;background:none;padding:0;cursor:pointer;border-radius:50%;display:block}
+.pbtn .peg{--sz:var(--psz)}
+.pbtn:focus-visible{outline:3px solid var(--accent);outline-offset:3px}
+.pcol .cname{font-size:13px;font-weight:600}
+.pcol .key{font-size:12px;color:var(--muted)}
+.xbtn{position:absolute;top:-8px;right:-10px;width:26px;height:26px;border-radius:50%;border:2px solid var(--line);background:var(--panel);color:var(--ink);font-size:12px;line-height:1;padding:0;cursor:pointer}
+.xbtn:focus-visible{outline:3px solid var(--accent);outline-offset:2px}
+.pcol.ruled .peg{opacity:.3;filter:grayscale(.7)}
+.pcol.ruled .pbtn::after{content:"✕";position:absolute;inset:0;display:grid;place-items:center;font-size:calc(var(--psz) * .7);font-weight:700;color:var(--ink)}
+.pcol.used .peg{opacity:.35}
+#actions{display:flex;gap:10px;flex-wrap:wrap;justify-content:center}
+#legend{display:flex;gap:18px;justify-content:center;align-items:center;flex-wrap:wrap;font-size:14px;color:var(--muted)}
+#legend .dot{--peg:48px;vertical-align:middle;margin-right:6px}
+
+/* ---------- buttons ---------- */
+.btn{font-weight:600;font-size:15px;padding:9px 16px;min-height:44px;border-radius:12px;border:2px solid var(--line);background:var(--panel);color:var(--ink);cursor:pointer}
+.btn:hover{border-color:var(--accent)}
+.btn:focus-visible{outline:3px solid var(--accent);outline-offset:2px}
+.btn.small{min-height:38px;padding:6px 14px;font-size:14px}
+.btn.primary{background:var(--accent);border-color:var(--accent);color:var(--accent-ink);font-size:18px;padding:9px 26px}
+.btn.primary.notready{opacity:.55}
+.btn.hint{background:var(--hint-bg);border-color:var(--hint-line)}
+.btn:disabled{opacity:.4;cursor:not-allowed}
+
+/* ---------- splash ---------- */
+.screen{position:fixed;inset:0;z-index:30;background:var(--bg);display:grid;align-content:center;justify-items:center;overflow:auto;
+  padding:max(12px, env(safe-area-inset-top)) 16px max(12px, env(safe-area-inset-bottom))}
+.splash-card{width:min(1100px,100%);font-size:clamp(13px,2.3vh,17px)}
+.splash-head{display:flex;align-items:center;gap:14px;margin-bottom:1.4vh;flex-wrap:wrap}
+.splash-head h1{font-size:clamp(30px,6.4vh,46px)}
+.splash-head .tag{margin:0;color:var(--muted);font-size:1.12em}
+.splash-head .logo i{width:20px;height:20px}
+.splash-grid{display:grid;grid-template-columns:1.15fr .85fr;gap:16px}
+.card{background:var(--panel);border:2px solid var(--line);border-radius:18px;padding:1.6vh 20px}
+.card h2{font-family:var(--head);font-weight:600;font-size:1.45em;margin:0 0 .6vh}
+.card ol{margin:0;padding-left:1.3em}
+.card li{margin:.8vh 0;line-height:1.38}
+.clue-legend{display:flex;gap:16px;flex-wrap:wrap;margin:.5vh 0}
+.clue-legend .dot{--peg:48px;vertical-align:middle;margin-right:6px}
+.example{background:var(--slot);border-radius:14px;padding:1vh 14px;margin-top:1.2vh;--peg:32px}
+.ex-row{display:flex;align-items:center;gap:10px;margin:.5vh 0}
+.ex-lbl{width:3.6em;font-weight:700;color:var(--muted)}
+.ex-pegs{display:flex;gap:6px}
+.ex-note{margin:.6vh 0 0;line-height:1.4}
+.ex-note .dot{--peg:46px;vertical-align:middle}
+.tip{margin:1vh 0 0;color:var(--muted)}
+.level{display:flex;align-items:center;gap:14px;width:100%;text-align:left;padding:1.5vh 16px;margin:0 0 1.2vh;border:2px solid var(--line);border-radius:16px;background:var(--panel);color:var(--ink);font:inherit;cursor:pointer}
+.level:hover{border-color:var(--accent)}
+.level:focus-visible{outline:3px solid var(--accent);outline-offset:2px}
+.lv-emoji{font-size:2.1em;line-height:1}
+.lv-body{display:flex;flex-direction:column;gap:2px;flex:1}
+.lv-name{font-family:var(--head);font-weight:600;font-size:1.4em}
+.lv-desc{color:var(--muted)}
+.lv-stars{color:var(--accent);font-size:1.1em;letter-spacing:2px}
+.levels-note{margin:.4vh 0 1vh;color:var(--muted)}
+
+/* ---------- end overlay ---------- */
+.overlay{position:fixed;inset:0;z-index:40;display:grid;place-items:center;background:rgba(10,15,28,.6);padding:16px}
+.end-card{background:var(--panel);border:2px solid var(--line);border-radius:22px;padding:24px 30px;width:min(520px,100%);text-align:center}
+.end-card h2{font-family:var(--head);font-weight:600;font-size:clamp(26px,5vh,36px);margin:0 0 6px}
+.end-card p{font-size:18px;line-height:1.4;margin:6px 0}
+.endcode{display:flex;gap:10px;justify-content:center;margin:14px 0 18px;--sz:46px}
+.end-actions{display:flex;gap:10px;justify-content:center;flex-wrap:wrap}
+
+/* ---------- small screens ---------- */
+@media (max-width:860px){
+  body{overflow:auto}
+  #app{height:auto;min-height:100%}
+  main{grid-template-columns:1fr}
+  #boardWrap{height:64vh}
+  .splash-grid{grid-template-columns:1fr}
+}
+</style>
+</head>
+<body>
+
+<div id="app">
+  <header>
+    <div class="logo" aria-hidden="true"><i style="background:#e5383b"></i><i style="background:#2f6fe4"></i><i style="background:#ffd23f"></i><i style="background:#2e9e4f"></i></div>
+    <h1>Code Breaker</h1>
+    <span class="pill" id="levelPill" hidden></span>
+    <span class="spacer"></span>
+    <button class="btn small" id="btnRules">How to play</button>
+    <button class="btn small" id="btnNew">New game</button>
+  </header>
+  <main>
+    <section id="boardWrap" aria-label="Your guesses"><div id="board"></div></section>
+    <aside id="panel">
+      <div id="secretBox">
+        <span class="lbl">Secret code</span>
+        <div id="secretPegs"></div>
+        <span id="guessCount"></span>
+      </div>
+      <div id="coach" role="status" aria-live="polite"><div class="avatar" aria-hidden="true">🔎</div><div id="coachText"></div></div>
+      <div id="palette" aria-label="Colors"></div>
+      <div id="actions"></div>
+      <div id="legend">
+        <span><span class="dot b"></span>right color, right spot</span>
+        <span><span class="dot w"></span>right color, wrong spot</span>
+      </div>
+    </aside>
+  </main>
+</div>
+
+<div id="splash" class="screen">
+  <div class="splash-card">
+    <div class="splash-head">
+      <div class="logo" aria-hidden="true"><i style="background:#e5383b"></i><i style="background:#2f6fe4"></i><i style="background:#ffd23f"></i><i style="background:#2e9e4f"></i></div>
+      <h1>Code Breaker</h1>
+      <p class="tag">A secret code of colors is hiding. Use the clues to crack it!</p>
+    </div>
+    <div class="splash-grid">
+      <section class="card">
+        <h2>How to play</h2>
+        <ol>
+          <li><b>Find the secret code.</b> The computer hides a row of colors. You can’t see it, but you can figure it out.</li>
+          <li><b>Make a guess.</b> Tap colors to fill your row, then press <b>Check</b>.</li>
+          <li><b>Read the clues.</b> Little dots appear beside your guess:
+            <div class="clue-legend">
+              <span><span class="dot b"></span><b>right color</b>, right spot</span>
+              <span><span class="dot w"></span><b>right color</b>, wrong spot</span>
+            </div>
+            The dots don’t say <i>which</i> peg earned them. That’s the puzzle!</li>
+          <li><b>Think, then guess again.</b> Use every clue to rule colors in or out. Crack the code before you run out of guesses.</li>
+        </ol>
+        <div class="example" id="example"></div>
+        <p class="tip">Tip: tap the ✕ on a color to cross it off when you know it’s not in the code.</p>
+      </section>
+      <section>
+        <div class="card">
+          <h2>Pick a level</h2>
+          <p class="levels-note" id="levelsNote">New here? Start with Rookie.</p>
+          <div id="levelList"></div>
+          <button class="btn" id="btnResume" hidden>← Back to my game</button>
+        </div>
+      </section>
+    </div>
+  </div>
+</div>
+
+<div id="end" class="overlay" hidden>
+  <div class="end-card" role="dialog" aria-modal="true" aria-labelledby="endTitle">
+    <h2 id="endTitle"></h2>
+    <p id="endMsg"></p>
+    <div class="endcode" id="endCode"></div>
+    <div class="end-actions">
+      <button class="btn primary" id="endAgain">Play again</button>
+      <button class="btn" id="endLevel">Change level</button>
+      <button class="btn" id="endLook">See the board</button>
+    </div>
+  </div>
+</div>
+
+<script>
+/* =====================================================================
+   TEACHER SETTINGS
+   HINTS_ALLOWED
+     true  -> students see the "Hint" and "Test my guess" buttons
+     false -> those buttons are hidden (students still get the clue dots)
+   You can also switch it for a single link, without editing this file:
+     code-breaker.html?hints=off     or     code-breaker.html?hints=on
+   ===================================================================== */
+const HINTS_ALLOWED = true;
+
+(function(){
+'use strict';
+
+const _q = new URLSearchParams(location.search).get('hints');
+const helps = _q === 'off' ? false : _q === 'on' ? true : HINTS_ALLOWED;
+
+/* ---------- colors (each also has its own shape, so color is never the only clue) ---------- */
+const SHAPES = {
+  triangle:'M10 3 L18 17 H2 Z',
+  hex:'M10 2 L17 6 V14 L10 18 L3 14 V6 Z',
+  diamond:'M10 1.5 L18.5 10 L10 18.5 L1.5 10 Z',
+  star:'M10 1.5 L12.6 7.3 L19 8 L14.2 12.3 L15.6 18.6 L10 15.4 L4.4 18.6 L5.8 12.3 L1 8 L7.4 7.3 Z',
+  plus:'M7.5 2.5 H12.5 V7.5 H17.5 V12.5 H12.5 V17.5 H7.5 V12.5 H2.5 V7.5 H7.5 Z',
+  square:'M3.5 3.5 H16.5 V16.5 H3.5 Z',
+  heart:'M10 17.5 C2.5 12 2.5 4.8 6.6 4.8 C8.4 4.8 9.5 5.9 10 7 C10.5 5.9 11.6 4.8 13.4 4.8 C17.5 4.8 17.5 12 10 17.5 Z'
+};
+const COLORS = [
+  {name:'Red',    bg:'#e5383b', ink:'#ffffff', shape:'triangle'},
+  {name:'Blue',   bg:'#2f6fe4', ink:'#ffffff', shape:'hex'},
+  {name:'Yellow', bg:'#ffd23f', ink:'#3b2f00', shape:'diamond'},
+  {name:'Green',  bg:'#2e9e4f', ink:'#ffffff', shape:'star'},
+  {name:'Purple', bg:'#7a3fc4', ink:'#ffffff', shape:'plus'},
+  {name:'Orange', bg:'#f58a1f', ink:'#3a1d00', shape:'square'},
+  {name:'Pink',   bg:'#ff7eb6', ink:'#4a0f2a', shape:'heart'}
+];
+
+/* ---------- levels ---------- */
+const LEVELS = {
+  rookie:    {name:'Rookie',     emoji:'🔍', stars:'★☆☆', pegs:4, colors:5, repeats:false, guesses:10, note:'Every color is used only once.'},
+  detective: {name:'Detective',  emoji:'🕵️', stars:'★★☆', pegs:4, colors:6, repeats:true,  guesses:10, note:'Colors can repeat, so Red Red is possible.'},
+  master:    {name:'Mastermind', emoji:'🧠', stars:'★★★', pegs:5, colors:7, repeats:true,  guesses:12, note:'A longer code and more colors.'}
+};
+
+/* ---------- state ---------- */
+let cfg = null, allCodes = [], secret = [], history = [], row = [], sel = 0;
+let over = false, active = false, hintLevel = 0, hintsUsed = 0, ruled = new Set();
+let flagRow = -1, flagTimer = null;
+
+const $ = id => document.getElementById(id);
+
+/* ---------- helpers ---------- */
+function pegHTML(i, cls){
+  const c = COLORS[i];
+  return `<span class="peg ${cls||''}" style="--bg-c:${c.bg};--ink-c:${c.ink}"><svg viewBox="0 0 20 20" aria-hidden="true"><path d="${SHAPES[c.shape]}"/></svg></span>`;
+}
+function chip(i){ return `<span class="chip">${pegHTML(i,'mini')}<b>${COLORS[i].name}</b></span>`; }
+function listChips(a){
+  const s = a.map(chip);
+  return s.length < 2 ? s.join('') : s.slice(0,-1).join(', ') + ' and ' + s[s.length-1];
+}
+function fbHTML(b, w, n, ghost){
+  let h = '';
+  for(let i=0;i<n;i++){
+    h += `<span class="dot ${ghost ? 'e' : i<b ? 'b' : i<b+w ? 'w' : 'e'}"></span>`;
+  }
+  return `<div class="fb${ghost?' ghost':''}" style="--fbcols:${Math.ceil(n/2)}">${h}</div>`;
+}
+function genCodes(n, c, rep){
+  const out = [], cur = [];
+  (function rec(){
+    if(cur.length === n){ out.push(cur.slice()); return; }
+    for(let i=0;i<c;i++){
+      if(!rep && cur.includes(i)) continue;
+      cur.push(i); rec(); cur.pop();
+    }
+  })();
+  return out;
+}
+function score(g, c, C){
+  let b = 0;
+  const cg = new Array(C).fill(0), cc = new Array(C).fill(0);
+  for(let i=0;i<g.length;i++){ if(g[i] === c[i]) b++; cg[g[i]]++; cc[c[i]]++; }
+  let t = 0;
+  for(let k=0;k<C;k++) t += Math.min(cg[k], cc[k]);
+  return {b, w:t-b};
+}
+function consistent(){
+  return allCodes.filter(code => history.every(h => {
+    const s = score(h.guess, code, cfg.colors);
+    return s.b === h.b && s.w === h.w;
+  }));
+}
+function say(html, kind){
+  $('coach').className = kind || '';
+  $('coachText').innerHTML = html;
+}
+function plural(n, one, many){ return n + ' ' + (n === 1 ? one : many); }
+
+/* ---------- sizing: everything scales to fit one screen ---------- */
+function fit(){
+  if(!cfg) return;
+  const board = $('board');
+  const bw = board.clientWidth, bh = board.clientHeight;
+  if(!bw || !bh) return;
+  const G = cfg.guesses, n = cfg.pegs;
+  const gap = Math.max(3, Math.min(8, bh / (G * 8)));
+  const rowH = (bh - gap * (G - 1)) / G;
+  const cols = Math.ceil(n / 2);
+  const fbW = cols * 0.34 + (cols - 1) * 0.08;
+  const units = 0.4 + 0.6 + n + fbW + (n + 1) * 0.18;
+  const peg = Math.floor(Math.max(18, Math.min(rowH * 0.8, (bw - 8) / units, 58)));
+  const st = document.documentElement.style;
+  st.setProperty('--peg', peg + 'px');
+  st.setProperty('--rowh', rowH + 'px');
+  st.setProperty('--rgap', gap + 'px');
+}
+
+/* ---------- rendering ---------- */
+function renderBoard(){
+  let h = '';
+  const n = cfg.pegs;
+  for(let r=0;r<cfg.guesses;r++){
+    if(r < history.length){
+      const e = history[r];
+      h += `<div class="row past${flagRow===r?' flag':''}"><span class="num">${r+1}</span><div class="slots">${
+        e.guess.map(i => `<span class="slot filled">${pegHTML(i)}</span>`).join('')
+      }</div>${fbHTML(e.b, e.w, n, false)}</div>`;
+    } else if(r === history.length && !over){
+      h += `<div class="row current"><span class="num">${r+1}</span><div class="slots">${
+        row.map((v,i) => `<button class="slot${i===sel?' sel':''}${v===null?'':' filled'}" data-i="${i}" aria-label="Spot ${i+1}${v===null?', empty':', '+COLORS[v].name}">${v===null?'':pegHTML(v)}</button>`).join('')
+      }</div>${fbHTML(0,0,n,true)}</div>`;
+    } else {
+      h += `<div class="row future"><span class="num">${r+1}</span><div class="slots">${
+        '<span class="slot"></span>'.repeat(n)
+      }</div>${fbHTML(0,0,n,true)}</div>`;
+    }
+  }
+  $('board').innerHTML = h;
+}
+function renderSecret(){
+  $('secretPegs').innerHTML = over
+    ? secret.map(i => pegHTML(i)).join('')
+    : secret.map(() => '<span class="peg q">?</span>').join('');
+  const k = Math.min(history.length + 1, cfg.guesses);
+  $('guessCount').textContent = over ? 'Game over' : `Guess ${k} of ${cfg.guesses}`;
+}
+function buildPalette(){
+  const p = $('palette');
+  p.innerHTML = '';
+  for(let i=0;i<cfg.colors;i++){
+    const col = document.createElement('div');
+    col.className = 'pcol';
+    col.dataset.i = i;
+    col.innerHTML = `<button class="pbtn" aria-label="${COLORS[i].name}">${pegHTML(i)}</button>
+      <span class="cname">${COLORS[i].name}</span><span class="key">key ${i+1}</span>
+      <button class="xbtn" aria-label="Cross ${COLORS[i].name} off the list"></button>`;
+    col.querySelector('.pbtn').addEventListener('click', () => place(i));
+    col.querySelector('.xbtn').addEventListener('click', () => { toggleRuled(i); });
+    p.appendChild(col);
+  }
+}
+function updatePalette(){
+  document.querySelectorAll('.pcol').forEach(el => {
+    const i = +el.dataset.i;
+    const r = ruled.has(i);
+    el.classList.toggle('ruled', r);
+    el.classList.toggle('used', !cfg.repeats && row.some((v,idx) => v === i && idx !== sel));
+    const x = el.querySelector('.xbtn');
+    x.textContent = r ? '↺' : '✕';
+    x.title = r ? `Put ${COLORS[i].name} back on the list` : `Cross ${COLORS[i].name} off the list`;
+  });
+}
+function buildActions(){
+  $('actions').innerHTML =
+    `<button class="btn primary" id="btnCheck">Check ✓</button>
+     <button class="btn" id="btnClear">Clear row</button>` +
+    (helps ? `<button class="btn hint" id="btnHint">💡 Hint</button>
+              <button class="btn" id="btnTest">🔍 Test my guess</button>` : '');
+  $('btnCheck').addEventListener('click', submit);
+  $('btnClear').addEventListener('click', clearRow);
+  if(helps){
+    $('btnHint').addEventListener('click', giveHint);
+    $('btnTest').addEventListener('click', testGuess);
+  }
+}
+function updateActions(){
+  const full = row.every(v => v !== null);
+  $('btnCheck').classList.toggle('notready', !full || over);
+  $('btnCheck').disabled = over;
+  $('btnClear').disabled = over;
+  if(helps){
+    $('btnHint').disabled = over;
+    $('btnTest').disabled = over;
+    $('btnHint').textContent = '💡 Hint' + (hintLevel ? ` (${hintLevel} of 3)` : '');
+  }
+}
+function render(){
+  renderBoard(); renderSecret(); updatePalette(); updateActions();
+}
+
+/* ---------- playing ---------- */
+function place(i){
+  if(!active || over) return;
+  if(!cfg.repeats && row.some((v,idx) => v === i && idx !== sel)){
+    say(`In ${cfg.name} mode, each color can be used only once in a guess. Try a different color.`, 'warn');
+    return;
+  }
+  row[sel] = i;
+  for(let k=1;k<=cfg.pegs;k++){
+    const j = (sel + k) % cfg.pegs;
+    if(row[j] === null){ sel = j; break; }
+  }
+  render();
+}
+function erase(){
+  if(!active || over) return;
+  if(row[sel] !== null){ row[sel] = null; }
+  else { for(let j=sel-1;j>=0;j--){ if(row[j] !== null){ row[j] = null; sel = j; break; } } }
+  render();
+}
+function clearRow(){
+  if(!active || over) return;
+  row = Array(cfg.pegs).fill(null); sel = 0; render();
+}
+function toggleRuled(i){
+  if(!active) return;
+  if(ruled.has(i)) ruled.delete(i); else ruled.add(i);
+  updatePalette();
+}
+function clueText(k, s){
+  if(s.b + s.w === 0) return `<b>Guess ${k}:</b> no dots at all. None of those colors are in the secret code.`;
+  const parts = [];
+  if(s.b) parts.push(`<b>${s.b}</b> with the right color in the right spot`);
+  if(s.w) parts.push(`<b>${s.w}</b> with the right color in the wrong spot`);
+  return `<b>Guess ${k}:</b> ${parts.join(' and ')}. Use that to plan your next guess.`;
+}
+function submit(){
+  if(!active || over) return;
+  if(row.some(v => v === null)){
+    say('Fill in every spot in your row first, then press <b>Check</b>.', 'warn');
+    return;
+  }
+  const g = row.slice();
+  const s = score(g, secret, cfg.colors);
+  history.push({guess:g, b:s.b, w:s.w});
+  hintLevel = 0;
+  row = Array(cfg.pegs).fill(null); sel = 0;
+  const won = s.b === cfg.pegs;
+  if(won || history.length >= cfg.guesses) over = true;
+  if(!over) say(clueText(history.length, s), 'info');
+  render();
+  if(over) showEnd(won);
+}
+
+/* ---------- hints & helps (only when HINTS_ALLOWED) ---------- */
+function hint1(){
+  const k = history.length, n = cfg.pegs;
+  const head = `<b>Hint 1 of 3 · Think</b><br>`;
+  if(k === 0){
+    return head + (cfg.repeats
+      ? `Your first guess is a test. A smart opener uses just <b>2 or 3 colors</b> (like two of one color and two of another), so the clues are easier to read. What do you think the dots will tell you?`
+      : `Your first guess is a test. Pick any ${n} different colors. The dots will tell you how many of them are in the secret code.`);
+  }
+  const h = history[k-1], t = h.b + h.w;
+  if(t === 0) return head + `Look at guess ${k}. It got <b>no dots</b>. What does that tell you about every color you used in it?`;
+  return head + `Look at guess ${k}: <b>${h.b}</b> black and <b>${h.w}</b> white. Add them up to get <b>${t}</b>. That’s how many of your pegs match a color in the secret code. Which ones could they be?`;
+}
+function hint2(){
+  const k = history.length, C = cfg.colors;
+  const head = `<b>Hint 2 of 3 · Work it out</b><br>`;
+  if(k === 0) return head + `There are no clues yet, so there’s nothing to cross off. Make a first guess and I can start helping you rule colors out. (Hint 3 will give you a good first guess.)`;
+  const S = consistent();
+  if(!S.length) return head + `Hmm, those clues don’t seem to fit any code. Try starting a new game.`;
+  const absent = [];
+  for(let c=0;c<C;c++) if(!S.some(code => code.includes(c))) absent.push(c);
+  const fresh = absent.filter(c => !ruled.has(c));
+  if(fresh.length){
+    fresh.forEach(c => ruled.add(c));
+    const zeros = [];
+    history.forEach((h,i) => { if(h.b + h.w === 0 && h.guess.some(c => fresh.includes(c))) zeros.push(i+1); });
+    const covered = fresh.every(c => history.some(h => h.b + h.w === 0 && h.guess.includes(c)));
+    const why = covered
+      ? `Guess${zeros.length>1?'es':''} ${zeros.join(', ')} got <b>no dots</b>, so every color in ${zeros.length>1?'those guesses is':'that guess is'} out.`
+      : `When you put all your clues together, no code that fits can use ${fresh.length>1?'them':'it'}.`;
+    return head + `${listChips(fresh)} can’t be in the code, so I crossed ${fresh.length>1?'them':'it'} off your color list. ${why}`;
+  }
+  if(S.length === 1) return head + `Only <b>one</b> code fits all your clues! Press Hint again and I’ll set it up for you.`;
+  for(let p=0;p<cfg.pegs;p++){
+    if(S.every(code => code[p] === S[0][p])){
+      return head + `Spot <b>${p+1}</b> (counting from the left) has to be ${chip(S[0][p])}. Every code that fits your clues has it there.`;
+    }
+  }
+  const must = [];
+  for(let c=0;c<C;c++) if(S.every(code => code.includes(c))) must.push(c);
+  if(must.length) return head + `${listChips(must)} ${must.length>1?'are':'is'} definitely in the code somewhere. Your clues make that certain.`;
+  return head + `There are still <b>${S.length.toLocaleString()}</b> codes that fit all your clues. Each good guess cuts that number way down. Hint 3 gives you a guess that fits every clue.`;
+}
+function hint3(){
+  const k = history.length;
+  const head = `<b>Hint 3 of 3 · Try this</b><br>`;
+  let g;
+  if(k === 0){
+    g = !cfg.repeats ? [0,1,2,3] : (cfg.pegs === 4 ? [0,0,1,1] : [0,0,1,1,2]);
+  } else {
+    const S = consistent();
+    const pool = S.length ? S : allCodes;
+    g = pool[Math.floor(Math.random() * pool.length)];
+  }
+  row = g.slice(); sel = 0;
+  const txt = k === 0
+    ? (cfg.repeats ? `I filled in a good opener. It uses just a few colors, so the clues are easy to read.`
+                   : `I filled in a first guess for you. Any ${cfg.pegs} different colors work well to start.`)
+    : `I filled in a guess that fits <b>every</b> clue you have so far.`;
+  return head + `${txt} Smart players always guess a code that <i>could</i> be the answer. Press <b>Check</b> to try it, or change it.`;
+}
+function giveHint(){
+  if(!helps || !active || over) return;
+  if(hintLevel >= 3){
+    say(`I already gave you my best suggestion for this turn. Try it, or make a guess of your own. You can do this!`, 'hint');
+    return;
+  }
+  hintLevel++; hintsUsed++;
+  const html = hintLevel === 1 ? hint1() : hintLevel === 2 ? hint2() : hint3();
+  say(html, 'hint');
+  render();
+}
+function flash(r){
+  flagRow = r; renderBoard();
+  clearTimeout(flagTimer);
+  flagTimer = setTimeout(() => { flagRow = -1; if(cfg && active) renderBoard(); }, 4000);
+}
+function testGuess(){
+  if(!helps || !active || over) return;
+  if(row.some(v => v === null)){
+    say('Fill in every spot first, then I can test your guess.', 'warn');
+    return;
+  }
+  for(let i=0;i<history.length;i++){
+    const h = history[i];
+    const s = score(h.guess, row, cfg.colors);
+    if(s.b !== h.b || s.w !== h.w){
+      say(`<b>Not this one.</b> Pretend your row is the secret code. Then guess ${i+1} would have earned <b>${s.b}</b> black and <b>${s.w}</b> white. But it really earned <b>${h.b}</b> and <b>${h.w}</b>, so this can’t be the code. Change something and test again!`, 'hint');
+      flash(i);
+      return;
+    }
+  }
+  say(`<b>Yes, this could be the code!</b> It matches every clue so far. Press <b>Check</b> to try it.`, 'good');
+}
+
+/* ---------- screens ---------- */
+function showSplash(){
+  $('splash').hidden = false; $('app').inert = true;
+  $('btnResume').hidden = !active;
+  const first = document.querySelector('.level');
+  if(first) first.focus();
+}
+function hideSplash(){ $('splash').hidden = true; $('app').inert = false; }
+function showEnd(won){
+  const k = history.length;
+  $('endTitle').textContent = won ? 'You cracked the code!' : 'Out of guesses';
+  $('endMsg').innerHTML = won
+    ? `You solved it in <b>${plural(k,'guess','guesses')}</b>${hintsUsed ? ` and used ${plural(hintsUsed,'hint','hints')}` : ''}. Nice thinking!`
+    : `Good effort. Every guess taught you something. Here’s the secret code:`;
+  $('endCode').innerHTML = secret.map(i => pegHTML(i)).join('');
+  $('end').hidden = false; $('app').inert = true;
+  $('endAgain').focus();
+  say(won ? `<b>Solved!</b> Press <b>New game</b> to play again.` : `Press <b>New game</b> to try again.`, won ? 'good' : 'info');
+}
+function startGame(key){
+  cfg = Object.assign({key}, LEVELS[key]);
+  allCodes = genCodes(cfg.pegs, cfg.colors, cfg.repeats);
+  secret = allCodes[Math.floor(Math.random() * allCodes.length)];
+  history = []; row = Array(cfg.pegs).fill(null); sel = 0;
+  over = false; active = true; hintLevel = 0; hintsUsed = 0; ruled = new Set(); flagRow = -1;
+  buildPalette(); buildActions();
+  $('levelPill').hidden = false;
+  $('levelPill').textContent = `${cfg.emoji} ${cfg.name}`;
+  $('end').hidden = true;
+  hideSplash();
+  say(`Tap a color to fill your row, then press <b>Check</b>. ${cfg.repeats ? 'Colors can repeat.' : 'Each color can be used only once.'}${helps ? ' Stuck? The <b>Hint</b> button is here for you.' : ''}`, 'info');
+  fit(); render();
+}
+
+/* ---------- splash content ---------- */
+function buildSplash(){
+  $('levelList').innerHTML = Object.keys(LEVELS).map(k => {
+    const L = LEVELS[k];
+    return `<button class="level" data-k="${k}">
+      <span class="lv-emoji" aria-hidden="true">${L.emoji}</span>
+      <span class="lv-body">
+        <span class="lv-name">${L.name}</span>
+        <span class="lv-desc">${L.pegs} pegs, ${L.colors} colors, ${L.guesses} guesses</span>
+        <span class="lv-desc">${L.note}</span>
+      </span>
+      <span class="lv-stars" aria-label="Difficulty">${L.stars}</span>
+    </button>`;
+  }).join('');
+  document.querySelectorAll('.level').forEach(b => b.addEventListener('click', () => startGame(b.dataset.k)));
+  const ex = (arr) => arr.map(i => pegHTML(i)).join('');
+  $('example').innerHTML =
+    `<div class="ex-row"><span class="ex-lbl">Secret</span><span class="ex-pegs">${ex([0,1,2,3])}</span></div>
+     <div class="ex-row"><span class="ex-lbl">Guess</span><span class="ex-pegs">${ex([0,2,1,4])}</span>${fbHTML(1,2,4,false)}</div>
+     <p class="ex-note">Red is in the right spot (<span class="dot b"></span>). Yellow and Blue are in the code, but in the wrong spots (<span class="dot w"></span><span class="dot w"></span>). Purple isn’t in the code at all.</p>`;
+}
+
+/* ---------- events ---------- */
+$('board').addEventListener('click', e => {
+  const s = e.target.closest('.slot[data-i]');
+  if(s && active && !over){ sel = +s.dataset.i; render(); }
+});
+$('btnRules').addEventListener('click', showSplash);
+$('btnNew').addEventListener('click', showSplash);
+$('btnResume').addEventListener('click', hideSplash);
+$('endAgain').addEventListener('click', () => startGame(cfg.key));
+$('endLevel').addEventListener('click', () => { $('end').hidden = true; showSplash(); });
+$('endLook').addEventListener('click', () => { $('end').hidden = true; $('app').inert = false; });
+
+document.addEventListener('keydown', e => {
+  if(!active || over || !$('splash').hidden || !$('end').hidden) return;
+  if(e.ctrlKey || e.metaKey || e.altKey) return;
+  const k = e.key;
+  if(/^[1-9]$/.test(k)){
+    const i = +k - 1;
+    if(i < cfg.colors){ place(i); e.preventDefault(); }
+  } else if(k === 'Backspace' || k === 'Delete'){ erase(); e.preventDefault(); }
+  else if(k === 'ArrowLeft'){ sel = (sel - 1 + cfg.pegs) % cfg.pegs; render(); e.preventDefault(); }
+  else if(k === 'ArrowRight'){ sel = (sel + 1) % cfg.pegs; render(); e.preventDefault(); }
+  else if(k === 'Enter' && document.activeElement === document.body){ submit(); e.preventDefault(); }
+});
+
+window.addEventListener('resize', fit);
+if('ResizeObserver' in window) new ResizeObserver(fit).observe($('board'));
+
+/* ---------- go ---------- */
+buildSplash();
+showSplash();
+})();
+</script>
+</body>
+</html>
